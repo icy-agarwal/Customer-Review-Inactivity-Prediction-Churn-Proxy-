@@ -46,7 +46,7 @@ t = \frac{\text{Offer Cost}}{\text{Save Rate}\times\text{Customer Value}}
 t = \frac{100}{0.20\times800}=0.625
 \]
 
-This is the theoretical break-even point under the assumed economics and calibrated risk probabilities. The final threshold of 0.61 was selected using validation data based on simulated net value and evaluated once on the test set.
+This is the theoretical break-even point under the assumed economics, provided the predicted probabilities are calibrated. Since probability calibration has not been independently established, this threshold is treated as a theoretical reference point. The operating threshold of 0.61 was selected empirically using validation-set net value.
 
 ### Test Set Business Simulation
 
