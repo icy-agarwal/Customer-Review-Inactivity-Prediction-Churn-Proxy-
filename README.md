@@ -1,73 +1,108 @@
-# Customer Churn Predictor with a Cost-Sensitive Offer Threshold
+# Customer Review Inactivity Prediction (Churn Proxy)
 
-Predicts which customers will go quiet for the next 180 days, and chooses who should get a retention offer by expected rupee value instead of a default 0.5 cutoff. Built on Amazon Musical Instruments reviews, with time-based evaluation.
+Predicts which customers are likely to stop reviewing products for the next 180 days and identifies whom to target with retention offers using expected economic value rather than a default 0.5 classification threshold.
+
+Built using the Amazon Musical Instruments review dataset with time-based evaluation.
+
+**Note:** Review inactivity is used as a proxy for customer churn. The dataset does not contain actual purchase or subscription activity.
 
 ## Results
 
-| | AUC | PR-AUC |
-|---|---|---|
-| Logistic regression (validation, 8,368 users) | 0.665 | 0.844 |
+| Model | AUC | Average Precision (AP) |
+|---|---:|---:|
+| Logistic Regression (validation, 8,368 users) | 0.665 | 0.844 |
 | XGBoost (validation) | 0.676 | 0.850 |
 | **XGBoost (test, 9,203 users)** | **0.674** | **0.852** |
 
-Always predicting churn is already 75.6% accurate on test, so accuracy is not a useful metric here. At the chosen threshold, accuracy is 74.1%, but the policy still earns more money than blanket offers.
+The positive-class prevalence on the test set is approximately 75.6%, providing a random-ranking average precision baseline of approximately 0.756.
 
-Confusion matrix on test at threshold 0.61 (rows: actual, columns: not offered / offered):
+Always predicting inactivity achieves 75.6% accuracy on the test set. Therefore, accuracy alone is not a useful measure of model performance. At the selected threshold of 0.61, the model achieves 74.1% accuracy while producing higher simulated net value than blanket targeting.
 
-| | Not offered | Offered |
-|---|---|---|
+### Confusion Matrix
+
+Test set at threshold 0.61 (rows: actual, columns: not offered / offered).
+
+| | Not Offered | Offered |
+|---|---:|---:|
 | Stayed | 738 | 1,503 |
-| Churned | 879 | 6,083 |
+| Inactive (churn proxy) | 879 | 6,083 |
 
-## The decision (rupee figures are assumptions, not real business data)
+## Cost-Sensitive Retention Decision
 
-Assumptions: offer cost Rs 100, value of a kept customer Rs 800, 20% of would-be churners are kept by an offer. An offer pays off when churn risk is above cost / (save rate x value) = 0.625. The threshold was chosen on validation (0.61) and scored once on test.
+All monetary values are hypothetical assumptions, not actual business or transaction data.
 
-| Test (9,203 customers) | Net value |
-|---|---|
-| Target nobody | Rs 0 |
-| Target everyone | Rs 193,620 |
-| Model, threshold 0.61 | Rs 214,680 (+10.9%) |
+**Assumptions:**
+- Offer cost: ₹100
+- Value of a retained customer: ₹800
+- Offer success rate: 20% of customers who would otherwise become inactive
 
-### Sensitivity
+The theoretical break-even threshold is:
 
-| Changed assumption | Best threshold | Model vs target everyone |
-|---|---|---|
-| Offer cost Rs 50 | 0.30 | +Rs 2,200 (+0.3%) |
-| Base case | 0.61 | +Rs 21,060 (+10.9%) |
-| Offer cost Rs 200 or Rs 400 | none | offers lose money, send none |
-| Customer value Rs 400 | none | offers lose money, send none |
-| Customer value Rs 1,600 | 0.30 | +Rs 4,400 (+0.3%) |
-| Save rate 10% | none | offers lose money, send none |
-| Save rate 30% | 0.38 | +Rs 8,040 (+1.1%) |
+\[
+t = \frac{\text{Offer Cost}}{\text{Save Rate}\times\text{Customer Value}}
+\]
 
-The model's advantage over blanket offers is large only when the economics are in a middle band. When offers are cheap or very profitable, almost everyone should get one. When they cost more than they can return, the right policy is to send none.
+\[
+t = \frac{100}{0.20\times800}=0.625
+\]
 
-## Method
+The final threshold of 0.61 was selected using validation data based on simulated net value and evaluated once on the test set.
 
-- **Definition:** among customers with a review in the 365 days before a cutoff date, churn means no review in the next 180 days. Reviews stand in for purchase activity.
-- **Time-based snapshots:** train 2016-01-01, validation 2016-07-01, test 2017-01-01.
-- **Features (all computed before the cutoff):** review count, average rating, days since last review, account age, reviews in the last 365 days, reviews in the last 90 days. Four extra behavioral features (average gap, overdue ratio, recent share, last rating) changed AUC by 0.004 and were dropped.
-- **Leakage found and fixed:** the dataset's 5-core filter means a user with fewer than 5 earlier reviews must review again later. Their churn rate was 0.47 to 0.50 against 0.74 to 0.75 for everyone else, which inflated XGBoost's validation AUC to 0.72. Only users with 5 or more reviews before the cutoff are used.
+### Test Set Business Simulation
 
-## Data
+| Targeting Strategy | Simulated Net Value |
+|---|---:|
+| Target nobody | ₹0 |
+| Target everyone | ₹193,620 |
+| **Model-based targeting (0.61)** | **₹214,680 (+10.9%)** |
 
-[Amazon Review Data (2018)](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon_v2), Musical Instruments, 5-core file. After removing 12,236 duplicate (user, item) pairs and re-applying the 5-core filter: 206,241 reviews, 24,780 users.
+The model achieves ₹21,060 higher simulated net value than blanket targeting under the base-case assumptions.
 
-## Limitations
+### Sensitivity Analysis
 
-- Reviews are a stand-in for purchases, and not reviewing is not the same as leaving.
-- The dataset only contains users with 5 or more reviews overall, so these are already engaged customers.
-- All rupee figures are assumptions.
-- AUC is modest (about 0.67). Review timing is a weak signal of churn.
-- The same users appear in more than one snapshot, but each snapshot only uses information from before its own cutoff.
+| Changed Assumption | Best Threshold | Model vs. Target Everyone |
+|---|---:|---:|
+| Offer cost ₹50 | 0.30 | +₹2,200 (+0.3%) |
+| Base case | 0.61 | +₹21,060 (+10.9%) |
+| Offer cost ₹200 or ₹400 | None | Offers lose money; target nobody |
+| Customer value ₹400 | None | Offers lose money; target nobody |
+| Customer value ₹1,600 | 0.30 | +₹4,400 (+0.3%) |
+| Save rate 10% | None | Offers lose money; target nobody |
+| Save rate 30% | 0.38 | +₹8,040 (+1.1%) |
 
-## Run it
+The model's advantage over blanket targeting is largest under intermediate economic assumptions. When offers are inexpensive or customer value is sufficiently high, targeting everyone becomes competitive. When offers cannot generate positive expected value, the optimal policy is to send none.
 
-Open `churn_predictor.ipynb` in Google Colab and run all cells. Download the dataset file from the link above and place it as `musical_instruments.json.gz` (the first cell shows how).
+**These results represent a cost-sensitive targeting simulation, not measured revenue improvement or causal uplift.** The model does not establish whether an offer actually prevents a customer from becoming inactive.
 
-**Label interpretation:** The target represents future review inactivity, not verified customer churn. Customers may continue purchasing products without submitting reviews.
+## Methodology
 
-**Evaluation:** The test average precision (AP) of 0.852 should be interpreted against a positive-class prevalence baseline of approximately 0.756.
+### 1. Target Definition
 
-**Business simulation:** The reported 10.9% improvement in net value is based on hypothetical retention-offer economics. This is a cost-sensitive targeting simulation, not a real-world revenue measurement or causal uplift estimate.
+Among customers with at least one review in the 365 days before a prediction cutoff, inactivity is defined as having no review during the following 180 days.
+
+Reviews are used as a proxy for purchase activity. Consequently, a customer who continues purchasing without submitting reviews may still be classified as inactive.
+
+### 2. Time-Based Evaluation
+
+Three chronological prediction snapshots are used:
+
+- Training: 2016-01-01
+- Validation: 2016-07-01
+- Testing: 2017-01-01
+
+Features are calculated exclusively using information available before each snapshot's cutoff date.
+
+The same users can appear across multiple snapshots. This represents temporal evaluation on a recurring customer population rather than evaluation on entirely unseen customers.
+
+### 3. Feature Engineering
+
+Six behavioral features are used:
+
+- Review count
+- Average rating
+- Days since last review
+- Account age
+- Reviews in the last 365 days
+- Reviews in the last 90 days
+
+Four additional behavioral features (average review gap, overdue ratio, recent share and last rating) were investigated but excluded because they changed AUC by only approximately 0.004
