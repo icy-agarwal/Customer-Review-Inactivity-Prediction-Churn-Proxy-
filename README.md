@@ -65,3 +65,9 @@ The model's advantage over blanket offers is large only when the economics are i
 ## Run it
 
 Open `churn_predictor.ipynb` in Google Colab and run all cells. Download the dataset file from the link above and place it as `musical_instruments.json.gz` (the first cell shows how).
+
+**Label interpretation:** The target represents future review inactivity, not verified customer churn. Customers may continue purchasing products without submitting reviews.
+
+**Evaluation:** The test average precision (AP) of 0.852 should be interpreted against a positive-class prevalence baseline of approximately 0.756.
+
+**Business simulation:** The reported 10.9% improvement in net value is based on hypothetical retention-offer economics. This is a cost-sensitive targeting simulation, not a real-world revenue measurement or causal uplift estimate.
