@@ -46,7 +46,7 @@ t = \frac{\text{Offer Cost}}{\text{Save Rate}\times\text{Customer Value}}
 t = \frac{100}{0.20\times800}=0.625
 \]
 
-The final threshold of 0.61 was selected using validation data based on simulated net value and evaluated once on the test set.
+This is the theoretical break-even point under the assumed economics and calibrated risk probabilities. The final threshold of 0.61 was selected using validation data based on simulated net value and evaluated once on the test set.
 
 ### Test Set Business Simulation
 
@@ -101,8 +101,56 @@ Six behavioral features are used:
 - Review count
 - Average rating
 - Days since last review
-- Account age
+- Review-history age (time since first observed review)
 - Reviews in the last 365 days
 - Reviews in the last 90 days
 
-Four additional behavioral features (average review gap, overdue ratio, recent share and last rating) were investigated but excluded because they changed AUC by only approximately 0.004
+Four additional behavioral features (average review gap, overdue ratio, recent share and last rating) were investigated but excluded because they changed AUC by only approximately 0.004.
+
+### 4. Model Training and Leakage Investigation
+
+Logistic Regression is used as a baseline and compared against XGBoost.
+
+The original 5-core dataset retains users and items with at least five reviews across the complete dataset. Applying this filter before chronological splitting introduces future-informed selection bias.
+
+In particular, users with fewer than five reviews before a prediction cutoff must have additional reviews later to satisfy the dataset's five-review requirement. This artificially reduces their observed inactivity rate.
+
+An investigation found that users with fewer than five prior reviews had inactivity rates of approximately 0.47–0.50, compared with 0.74–0.75 among users with at least five prior reviews. This inflated the original XGBoost validation AUC to approximately 0.72.
+
+To mitigate this user-level leakage, the final modelling population is restricted to users with at least five reviews before the respective prediction cutoff.
+
+This reduces the identified source of leakage but does not eliminate every possible source of temporal selection bias.
+
+## Dataset
+
+**Source:** [Amazon Review Data (2018)](https://cseweb.ucsd.edu/~jmcauley/datasets/amazon_v2)
+
+**Category:** Musical Instruments, 5-core review file.
+
+The dataset is preprocessed to retain user ID, item ID, rating and timestamp. Repeated user-item interactions are deduplicated, retaining the latest review, followed by an iterative 5-core filtering step.
+
+The resulting dataset contains:
+
+- 206,241 reviews
+- 24,780 users
+
+## Limitations
+
+- Reviews are a proxy for purchases. Not reviewing does not necessarily mean that a customer has stopped purchasing or left the platform.
+- The dataset contains only users and items meeting the 5-core requirement, limiting the representativeness of the population.
+- Applying the 5-core filter before chronological splitting introduces future-informed selection bias.
+- The model's reported performance is based on temporal snapshots of a recurring user population; the same users may appear across snapshots.
+- All rupee figures, including customer value, offer cost and save rate, are hypothetical assumptions.
+- The reported 10.9% improvement is a simulated targeting result, not verified revenue improvement or causal uplift.
+- Test ROC-AUC is approximately 0.67, indicating moderate predictive discrimination.
+- The model has not been tested using actual transaction data or deployed in a real retention campaign.
+- Probability calibration has not been independently established, so the theoretical break-even threshold should not be interpreted as a guaranteed optimal operating threshold.
+
+## How to Run
+
+1. Open `churn_predictor.ipynb` in Google Colab.
+2. Download the Musical Instruments 5-core dataset from the source linked above.
+3. Place the downloaded file in the Colab working directory as `musical_instruments.json.gz`.
+4. Run all notebook cells sequentially.
+
+The first notebook cell includes the dataset-loading instructions.
